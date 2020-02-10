@@ -1,0 +1,30 @@
+menu "SPP Flash Programmer"
+
+config BT_NAME
+    string "Bluetooth Name"
+    default "SPP Flash Programmer"
+    help
+        Bluetooth name exposed by the device.
+
+config BT_SPP_SERVER_NAME
+    string "SPP Server Name"
+    default "MTD"
+    help
+        Bluetooth SPP server name.
+
+config SPI_CS_PIN
+    int "SPI CS Pin"
+    default 15
+
+config SPI_SCLK_PIN
+    int "SPI SCLK Pin"
+    default 14
+
+config SPI_MOSI_PIN
+    int "SPI MOSI Pin"
+    default 13
+
+config SPI_MISO_PIN
+    int "SPI MISO Pin"
+    default 12
+endmenu
