@@ -137,7 +137,7 @@ void mtd_exec(esp_spp_cb_param_t *param)
         switch (cmd_idx) {
             case CMD_IDX_ERASE_ALL: {
                 sscanf((const char *)param->data_ind.data, cmd_fmt[CMD_IDX_ERASE_ALL].fmt);
-                ESP_LOGI(MTD_TAG, "GET command: MTD+ERASE_ALL!");
+                ESP_LOGI(MTD_TAG, "GET command: MTD+ERASE:ALL!");
 
                 sfud_err err = sfud_init();
                 if (err == SFUD_ERR_NOT_FOUND) {
