@@ -27,7 +27,7 @@ void hspi_init(void)
     spi_device_interface_config_t devcfg = {
         .mode = 0,                                // SPI mode 0
         .spics_io_num = -1,                       // CS pin
-        .clock_speed_hz = 40000000,               // Clock out at 40 MHz
+        .clock_speed_hz = 20000000,               // Clock out at 20 MHz
         .queue_size = 2,                          // We want to be able to queue 2 transactions at a time
     };
     ESP_ERROR_CHECK(spi_bus_add_device(HSPI_HOST, &devcfg, &hspi));

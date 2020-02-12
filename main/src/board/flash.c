@@ -22,7 +22,15 @@ void flash_init(void)
 {
     memset(hspi_trans, 0x00, sizeof(hspi_trans));
 
-    gpio_set_direction(CONFIG_SPI_CS_PIN, GPIO_MODE_OUTPUT);
+    gpio_config_t cfg = {
+        .pin_bit_mask = BIT64(CONFIG_SPI_CS_PIN),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = true,
+        .pull_down_en = false,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&cfg);
+
     gpio_set_level(CONFIG_SPI_CS_PIN, 1);
 
     ESP_LOGI(TAG, "initialized, cs: %d", CONFIG_SPI_CS_PIN);
