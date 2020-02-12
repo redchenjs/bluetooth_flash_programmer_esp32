@@ -66,7 +66,7 @@ sfud_err sfud_spi_port_init(sfud_flash *flash)
         case SFUD_TARGET_DEVICE_INDEX: {
             flash->spi.wr = spi_write_read;
             flash->retry.delay = retry_delay_10ms;
-            flash->retry.times = 60 * 100;
+            flash->retry.times = 300 * 100;
 
             break;
         }
