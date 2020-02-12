@@ -37,6 +37,8 @@ void bt_app_spp_cb(esp_spp_cb_event_t event, esp_spp_cb_param_t *param)
                  spp_remote_bda[0], spp_remote_bda[1], spp_remote_bda[2],
                  spp_remote_bda[3], spp_remote_bda[4], spp_remote_bda[5]);
 
+        memset(&spp_remote_bda, 0x00, sizeof(esp_bd_addr_t));
+
         mtd_end();
 
         esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
@@ -55,6 +57,8 @@ void bt_app_spp_cb(esp_spp_cb_event_t event, esp_spp_cb_param_t *param)
         break;
     case ESP_SPP_SRV_OPEN_EVT:
         esp_bt_gap_set_scan_mode(ESP_BT_NON_CONNECTABLE, ESP_BT_NON_DISCOVERABLE);
+
+        memcpy(&spp_remote_bda, param->srv_open.rem_bda, sizeof(esp_bd_addr_t));
 
         ESP_LOGI(BT_SPP_TAG, "SPP connection state: %s, [%02x:%02x:%02x:%02x:%02x:%02x]",
                  s_spp_conn_state_str[1],
