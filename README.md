@@ -9,6 +9,14 @@ Bluetooth SPP flash programmer based on ESP32 chip.
 | :---- | -: | ---: | ---: | ---: |
 | ESP32 | 15 |   14 |   13 |   12 |
 
+## Commands
+
+* `MTD+ERASE:ALL!`: Erase Full Flash Chip
+* `MTD+ERASE:0x%x+0x%x`: Erase Flash: Addr Length
+* `MTD+WRITE:0x%x+0x%x`: Write Flash: Addr Length
+* `MTD+READ:0x%x+0x%x`: Read Flash: Addr Length
+* `MTD+INFO?`: Flash Info
+
 ## Preparing
 
 ### Obtain the Source
