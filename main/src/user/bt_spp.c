@@ -51,9 +51,10 @@ void bt_app_spp_cb(esp_spp_cb_event_t event, esp_spp_cb_param_t *param)
         mtd_exec(param);
         break;
     case ESP_SPP_CONG_EVT:
-        ESP_LOGW(BT_SPP_TAG, "SPP connection congestion state: %d", param->cong.cong);
+        mtd_cong(param->cong.cong);
         break;
     case ESP_SPP_WRITE_EVT:
+        mtd_cong(param->write.cong);
         break;
     case ESP_SPP_SRV_OPEN_EVT:
         esp_bt_gap_set_scan_mode(ESP_BT_NON_CONNECTABLE, ESP_BT_NON_DISCOVERABLE);

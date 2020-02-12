@@ -58,6 +58,8 @@ static const char rsp_str[][32] = {
     "ERROR\r\n",        // Error
 };
 
+static bool conn_cong = false;
+static uint8_t read_delay = 10;
 static uint32_t conn_handle = 0;
 static uint32_t data_addr = 0;
 static uint32_t addr = 0, length = 0;
@@ -86,6 +88,8 @@ static void mtd_read_task(void *pvParameter)
 
     ESP_LOGI(MTD_TAG, "read started.");
 
+    conn_cong = 0;
+
     size_t pkt = 0;
     for (pkt=0; pkt<length/990; pkt++) {
         xLastWakeTime = xTaskGetTickCount();
@@ -102,7 +106,12 @@ static void mtd_read_task(void *pvParameter)
 
         esp_spp_write(conn_handle, 990, (uint8_t *)data_buff);
 
-        vTaskDelayUntil(&xLastWakeTime, 20 / portTICK_RATE_MS);
+        vTaskDelayUntil(&xLastWakeTime, read_delay / portTICK_RATE_MS);
+
+        while (conn_cong) {
+            xLastWakeTime = xTaskGetTickCount();
+            vTaskDelayUntil(&xLastWakeTime, read_delay / portTICK_RATE_MS);
+        }
     }
 
     uint32_t data_remain = length - pkt * 990;
@@ -121,6 +130,8 @@ static void mtd_read_task(void *pvParameter)
     }
 
     ESP_LOGI(MTD_TAG, "read done.");
+
+    conn_handle = 0;
 
     vTaskDelete(NULL);
 }
@@ -258,7 +269,7 @@ void mtd_exec(esp_spp_cb_param_t *param)
 
                         conn_handle = param->write.handle;
 
-                        xTaskCreatePinnedToCore(mtd_read_task, "mtdReadT", 2048, NULL, 9, NULL, 1);
+                        xTaskCreatePinnedToCore(mtd_read_task, "mtdReadT", 4096, NULL, 9, NULL, 1);
                     }
                 } else {
                     mtd_send_rsponse(RSP_IDX_ERROR);
@@ -339,6 +350,11 @@ void mtd_exec(esp_spp_cb_param_t *param)
             mtd_send_rsponse(RSP_IDX_DONE);
         }
     }
+}
+
+void mtd_cong(bool val)
+{
+    conn_cong = val;
 }
 
 void mtd_end(void)

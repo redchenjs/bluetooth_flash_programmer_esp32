@@ -11,6 +11,7 @@
 #include "esp_spp_api.h"
 
 extern void mtd_exec(esp_spp_cb_param_t *param);
+extern void mtd_cong(bool val);
 extern void mtd_end(void);
 
 #endif /* INC_USER_MTD_H_ */
