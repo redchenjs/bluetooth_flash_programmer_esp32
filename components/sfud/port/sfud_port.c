@@ -53,9 +53,10 @@ static sfud_err spi_write_read(const sfud_spi *spi, const uint8_t *write_buf, si
     return result;
 }
 
-static void retry_delay_10ms(void)
+static void retry_delay_1ms(void)
 {
-    vTaskDelay(10 / portTICK_RATE_MS);
+    portTickType xLastWakeTime = xTaskGetTickCount();
+    vTaskDelayUntil(&xLastWakeTime, 1 / portTICK_RATE_MS);
 }
 
 sfud_err sfud_spi_port_init(sfud_flash *flash)
@@ -65,8 +66,8 @@ sfud_err sfud_spi_port_init(sfud_flash *flash)
     switch (flash->index) {
         case SFUD_TARGET_DEVICE_INDEX: {
             flash->spi.wr = spi_write_read;
-            flash->retry.delay = retry_delay_10ms;
-            flash->retry.times = 300 * 100;
+            flash->retry.delay = retry_delay_1ms;
+            flash->retry.times = 300 * 1000;
 
             break;
         }

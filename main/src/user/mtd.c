@@ -58,12 +58,13 @@ static const char rsp_str[][32] = {
     "ERROR\r\n",        // Error
 };
 
-static bool conn_cong = false;
-static uint8_t read_delay = 10;
+static bool conn_cong = 0;
+static bool conn_flag = 0;
+static bool conn_write = 0;
 static uint32_t conn_handle = 0;
+
 static uint32_t data_addr = 0;
 static uint32_t addr = 0, length = 0;
-static uint8_t write_in_progress = 0;
 static sfud_flash *flash = NULL;
 
 static int mtd_parse_command(esp_spp_cb_param_t *param)
@@ -88,12 +89,8 @@ static void mtd_read_task(void *pvParameter)
 
     ESP_LOGI(MTD_TAG, "read started.");
 
-    conn_cong = 0;
-
     size_t pkt = 0;
     for (pkt=0; pkt<length/990; pkt++) {
-        xLastWakeTime = xTaskGetTickCount();
-
         err = sfud_read(flash, data_addr, 990, data_buff);
 
         data_addr += 990;
@@ -104,13 +101,14 @@ static void mtd_read_task(void *pvParameter)
             vTaskDelete(NULL);
         }
 
+        conn_cong = 0;
+        conn_flag = 0;
+
         esp_spp_write(conn_handle, 990, (uint8_t *)data_buff);
 
-        vTaskDelayUntil(&xLastWakeTime, read_delay / portTICK_RATE_MS);
-
-        while (conn_cong) {
+        while (conn_cong || !conn_flag) {
             xLastWakeTime = xTaskGetTickCount();
-            vTaskDelayUntil(&xLastWakeTime, read_delay / portTICK_RATE_MS);
+            vTaskDelayUntil(&xLastWakeTime, 1 / portTICK_RATE_MS);
         }
     }
 
@@ -126,7 +124,15 @@ static void mtd_read_task(void *pvParameter)
             vTaskDelete(NULL);
         }
 
+        conn_cong = 0;
+        conn_flag = 0;
+
         esp_spp_write(conn_handle, data_remain, (uint8_t *)data_buff);
+
+        while (conn_cong || !conn_flag) {
+            xLastWakeTime = xTaskGetTickCount();
+            vTaskDelayUntil(&xLastWakeTime, 1 / portTICK_RATE_MS);
+        }
     }
 
     ESP_LOGI(MTD_TAG, "read done.");
@@ -138,7 +144,7 @@ static void mtd_read_task(void *pvParameter)
 
 void mtd_exec(esp_spp_cb_param_t *param)
 {
-    if (!write_in_progress) {
+    if (!conn_write) {
         int cmd_idx = mtd_parse_command(param);
 
         if (flash) {
@@ -223,7 +229,7 @@ void mtd_exec(esp_spp_cb_param_t *param)
                 ESP_LOGI(MTD_TAG, "GET command: MTD+WRITE:0x%x+0x%x", addr, length);
 
                 if (length != 0) {
-                    write_in_progress = 1;
+                    conn_write = 1;
 
                     sfud_err err = sfud_init();
                     if (err == SFUD_ERR_NOT_FOUND) {
@@ -339,26 +345,27 @@ void mtd_exec(esp_spp_cb_param_t *param)
         if (err != SFUD_SUCCESS) {
             ESP_LOGE(MTD_TAG, "write failed.");
 
-            write_in_progress = 0;
+            conn_write = 0;
 
             mtd_send_rsponse(RSP_IDX_FAIL);
         } else if ((data_addr - addr) == length) {
             ESP_LOGI(MTD_TAG, "write done.");
 
-            write_in_progress = 0;
+            conn_write = 0;
 
             mtd_send_rsponse(RSP_IDX_DONE);
         }
     }
 }
 
-void mtd_cong(bool val)
+void mtd_cong(bool cong, bool flag)
 {
-    conn_cong = val;
+    conn_cong = cong;
+    conn_flag = flag;
 }
 
 void mtd_end(void)
 {
+    conn_write = 0;
     conn_handle = 0;
-    write_in_progress = 0;
 }
