@@ -69,7 +69,7 @@ static sfud_flash *flash = NULL;
 
 static int mtd_parse_command(esp_spp_cb_param_t *param)
 {
-    for (int i=0; i<sizeof(cmd_fmt)/32; i++) {
+    for (int i=0; i<sizeof(cmd_fmt)/sizeof(cmd_fmt_t); i++) {
         if (strncmp(cmd_fmt[i].fmt, (const char *)param->data_ind.data, cmd_fmt[i].id) == 0) {
             return i;
         }
