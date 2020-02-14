@@ -23,6 +23,12 @@
 #define mtd_send_data(X, N) \
     esp_spp_write(conn_handle, N, (uint8_t *)X)
 
+#define CMD_FMT_ERASE_ALL   "MTD+ERASE:ALL!"
+#define CMD_FMT_ERASE       "MTD+ERASE:0x%x+0x%x"
+#define CMD_FMT_WRITE       "MTD+WRITE:0x%x+0x%x"
+#define CMD_FMT_READ        "MTD+READ:0x%x+0x%x"
+#define CMD_FMT_INFO        "MTD+INFO?"
+
 enum cmd_idx {
     CMD_IDX_ERASE_ALL = 0x0,
     CMD_IDX_ERASE     = 0x1,
@@ -32,16 +38,16 @@ enum cmd_idx {
 };
 
 typedef struct {
-    const char id;
-    const char fmt[32];
+    const char prefix;
+    const char format[32];
 } cmd_fmt_t;
 
 static const cmd_fmt_t cmd_fmt[] = {
-    {.id = 14, .fmt = "MTD+ERASE:ALL!\r\n"},       // Erase Full Flash Chip
-    {.id = 10, .fmt = "MTD+ERASE:0x%x+0x%x\r\n"},  // Erase Flash: Addr Length
-    {.id = 10, .fmt = "MTD+WRITE:0x%x+0x%x\r\n"},  // Write Flash: Addr Length
-    {.id =  9, .fmt = "MTD+READ:0x%x+0x%x\r\n"},   // Read Flash:  Addr Length
-    {.id =  9, .fmt = "MTD+INFO?\r\n"},            // Flash Info
+    { .prefix = 16, .format = CMD_FMT_ERASE_ALL"\r\n" },   // Erase Full Flash Chip
+    { .prefix = 12, .format = CMD_FMT_ERASE"\r\n" },       // Erase Flash: Addr Length
+    { .prefix = 12, .format = CMD_FMT_WRITE"\r\n" },       // Write Flash: Addr Length
+    { .prefix = 11, .format = CMD_FMT_READ"\r\n" },        // Read Flash:  Addr Length
+    { .prefix = 11, .format = CMD_FMT_INFO"\r\n" },        // Flash Info
 };
 
 enum rsp_idx {
@@ -58,6 +64,7 @@ static const char rsp_str[][32] = {
     "ERROR\r\n",        // Error
 };
 
+static bool data_err = false;
 static bool data_cong = false;
 static bool data_sent = false;
 static bool data_recv = false;
@@ -70,7 +77,7 @@ static sfud_flash *flash = NULL;
 static int mtd_parse_command(esp_spp_cb_param_t *param)
 {
     for (int i=0; i<sizeof(cmd_fmt)/sizeof(cmd_fmt_t); i++) {
-        if (strncmp(cmd_fmt[i].fmt, (const char *)param->data_ind.data, cmd_fmt[i].id) == 0) {
+        if (strncmp(cmd_fmt[i].format, (const char *)param->data_ind.data, cmd_fmt[i].prefix) == 0) {
             return i;
         }
     }
@@ -82,10 +89,6 @@ static void mtd_read_task(void *pvParameter)
     portTickType xLastWakeTime;
     sfud_err err = SFUD_SUCCESS;
     uint8_t data_buff[990] = {0};
-
-    if (!conn_handle) {
-        vTaskDelete(NULL);
-    }
 
     ESP_LOGI(MTD_TAG, "read started.");
 
@@ -171,6 +174,10 @@ fail:
 
 void mtd_exec(esp_spp_cb_param_t *param)
 {
+    if (data_err) {
+        return;
+    }
+
     if (!data_recv) {
         int cmd_idx = mtd_parse_command(param);
 
@@ -182,8 +189,7 @@ void mtd_exec(esp_spp_cb_param_t *param)
 
         switch (cmd_idx) {
             case CMD_IDX_ERASE_ALL: {
-                sscanf((const char *)param->data_ind.data, cmd_fmt[CMD_IDX_ERASE_ALL].fmt);
-                ESP_LOGI(MTD_TAG, "GET command: MTD+ERASE:ALL!");
+                ESP_LOGI(MTD_TAG, "GET command: "CMD_FMT_ERASE_ALL);
 
                 sfud_err err = sfud_init();
                 if (err == SFUD_ERR_NOT_FOUND) {
@@ -216,8 +222,8 @@ void mtd_exec(esp_spp_cb_param_t *param)
             }
             case CMD_IDX_ERASE: {
                 addr = length = 0;
-                sscanf((const char *)param->data_ind.data, cmd_fmt[CMD_IDX_ERASE].fmt, &addr, &length);
-                ESP_LOGI(MTD_TAG, "GET command: MTD+ERASE:0x%x+0x%x", addr, length);
+                sscanf((const char *)param->data_ind.data, CMD_FMT_ERASE, &addr, &length);
+                ESP_LOGI(MTD_TAG, "GET command: "CMD_FMT_ERASE, addr, length);
 
                 if (length != 0) {
                     sfud_err err = sfud_init();
@@ -254,8 +260,8 @@ void mtd_exec(esp_spp_cb_param_t *param)
             }
             case CMD_IDX_WRITE: {
                 addr = length = 0;
-                sscanf((const char *)param->data_ind.data, cmd_fmt[CMD_IDX_WRITE].fmt, &addr, &length);
-                ESP_LOGI(MTD_TAG, "GET command: MTD+WRITE:0x%x+0x%x", addr, length);
+                sscanf((const char *)param->data_ind.data, CMD_FMT_WRITE, &addr, &length);
+                ESP_LOGI(MTD_TAG, "GET command: "CMD_FMT_WRITE, addr, length);
 
                 if (length != 0) {
                     data_recv = true;
@@ -285,8 +291,8 @@ void mtd_exec(esp_spp_cb_param_t *param)
             }
             case CMD_IDX_READ: {
                 addr = length = 0;
-                sscanf((const char *)param->data_ind.data, cmd_fmt[CMD_IDX_READ].fmt, &addr, &length);
-                ESP_LOGI(MTD_TAG, "GET command: MTD+READ:0x%x+0x%x", addr, length);
+                sscanf((const char *)param->data_ind.data, CMD_FMT_READ, &addr, &length);
+                ESP_LOGI(MTD_TAG, "GET command: "CMD_FMT_READ, addr, length);
 
                 if (length != 0) {
                     sfud_err err = sfud_init();
@@ -313,8 +319,7 @@ void mtd_exec(esp_spp_cb_param_t *param)
                 break;
             }
             case CMD_IDX_INFO: {
-                sscanf((const char *)param->data_ind.data, cmd_fmt[CMD_IDX_INFO].fmt);
-                ESP_LOGI(MTD_TAG, "GET command: MTD+INFO?");
+                ESP_LOGI(MTD_TAG, "GET command: "CMD_FMT_INFO);
 
                 sfud_err err = sfud_init();
                 if (err == SFUD_ERR_NOT_FOUND) {
@@ -360,11 +365,6 @@ void mtd_exec(esp_spp_cb_param_t *param)
                 break;
         }
     } else {
-        if (!conn_handle) {
-            data_recv = false;
-            return;
-        }
-
         sfud_err err = SFUD_SUCCESS;
         uint32_t remain = length - (data_addr - addr);
 
@@ -379,6 +379,7 @@ void mtd_exec(esp_spp_cb_param_t *param)
         if (err != SFUD_SUCCESS) {
             ESP_LOGE(MTD_TAG, "write failed.");
 
+            data_err = true;
             data_recv = false;
 
             mtd_send_response(RSP_IDX_FAIL);
@@ -401,6 +402,7 @@ void mtd_update(bool cong, bool sent)
 void mtd_end(void)
 {
     conn_handle = 0;
+    data_err = false;
 
     if (data_recv) {
         data_recv = false;
