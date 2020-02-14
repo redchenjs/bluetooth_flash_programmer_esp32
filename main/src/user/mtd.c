@@ -17,11 +17,11 @@
 
 #define MTD_TAG "mtd"
 
-#define mtd_send_rsponse(X) \
-    esp_spp_write(param->write.handle, strlen(rsp_str[X]), (uint8_t *)rsp_str[X])
+#define mtd_send_response(X) \
+    esp_spp_write(conn_handle, strlen(rsp_str[X]), (uint8_t *)rsp_str[X])
 
 #define mtd_send_data(X, N) \
-    esp_spp_write(param->write.handle, N, (uint8_t *)X)
+    esp_spp_write(conn_handle, N, (uint8_t *)X)
 
 enum cmd_idx {
     CMD_IDX_ERASE_ALL = 0x0,
@@ -58,9 +58,9 @@ static const char rsp_str[][32] = {
     "ERROR\r\n",        // Error
 };
 
-static bool conn_cong = 0;
-static bool conn_flag = 0;
-static bool conn_write = 0;
+static bool data_cong = false;
+static bool data_sent = false;
+static bool data_recv = false;
 static uint32_t conn_handle = 0;
 
 static uint32_t data_addr = 0;
@@ -89,54 +89,81 @@ static void mtd_read_task(void *pvParameter)
 
     ESP_LOGI(MTD_TAG, "read started.");
 
-    size_t pkt = 0;
+    data_cong = false;
+    data_sent = true;
+
+    uint32_t pkt = 0;
     for (pkt=0; pkt<length/990; pkt++) {
         err = sfud_read(flash, data_addr, 990, data_buff);
 
         data_addr += 990;
 
-        if (err != SFUD_SUCCESS || !conn_handle) {
+        if (err != SFUD_SUCCESS) {
             ESP_LOGE(MTD_TAG, "read failed.");
 
+            mtd_send_response(RSP_IDX_FAIL);
+
+            goto fail;
+        }
+
+        while (data_cong || !data_sent) {
+            xLastWakeTime = xTaskGetTickCount();
+
+            if (!conn_handle) {
+                ESP_LOGE(MTD_TAG, "read aborted.");
+                vTaskDelete(NULL);
+            }
+
+            vTaskDelayUntil(&xLastWakeTime, 1 / portTICK_RATE_MS);
+        }
+
+        data_cong = false;
+        data_sent = false;
+
+        if (!conn_handle) {
+            ESP_LOGE(MTD_TAG, "read aborted.");
             vTaskDelete(NULL);
         }
 
-        conn_cong = 0;
-        conn_flag = 0;
-
-        esp_spp_write(conn_handle, 990, (uint8_t *)data_buff);
-
-        while (conn_cong || !conn_flag) {
-            xLastWakeTime = xTaskGetTickCount();
-            vTaskDelayUntil(&xLastWakeTime, 1 / portTICK_RATE_MS);
-        }
+        mtd_send_data(data_buff, 990);
     }
 
     uint32_t data_remain = length - pkt * 990;
-    if (data_remain < 990) {
+    if (data_remain != 0 && data_remain < 990) {
         err = sfud_read(flash, data_addr, data_remain, data_buff);
 
         data_addr += data_remain;
 
-        if (err != SFUD_SUCCESS || !conn_handle) {
+        if (err != SFUD_SUCCESS) {
             ESP_LOGE(MTD_TAG, "read failed.");
 
+            mtd_send_response(RSP_IDX_FAIL);
+
+            goto fail;
+        }
+
+        while (data_cong || !data_sent) {
+            xLastWakeTime = xTaskGetTickCount();
+
+            if (!conn_handle) {
+                ESP_LOGE(MTD_TAG, "read aborted.");
+                vTaskDelete(NULL);
+            }
+
+            vTaskDelayUntil(&xLastWakeTime, 1 / portTICK_RATE_MS);
+        }
+
+        if (!conn_handle) {
+            ESP_LOGE(MTD_TAG, "read aborted.");
             vTaskDelete(NULL);
         }
 
-        conn_cong = 0;
-        conn_flag = 0;
-
-        esp_spp_write(conn_handle, data_remain, (uint8_t *)data_buff);
-
-        while (conn_cong || !conn_flag) {
-            xLastWakeTime = xTaskGetTickCount();
-            vTaskDelayUntil(&xLastWakeTime, 1 / portTICK_RATE_MS);
-        }
+        mtd_send_data(data_buff, data_remain);
     }
 
     ESP_LOGI(MTD_TAG, "read done.");
 
+fail:
     conn_handle = 0;
 
     vTaskDelete(NULL);
@@ -144,12 +171,14 @@ static void mtd_read_task(void *pvParameter)
 
 void mtd_exec(esp_spp_cb_param_t *param)
 {
-    if (!conn_write) {
+    if (!data_recv) {
         int cmd_idx = mtd_parse_command(param);
 
         if (flash) {
             memset(&flash->chip, 0x00, sizeof(sfud_flash_chip));
         }
+
+        conn_handle = param->write.handle;
 
         switch (cmd_idx) {
             case CMD_IDX_ERASE_ALL: {
@@ -160,11 +189,11 @@ void mtd_exec(esp_spp_cb_param_t *param)
                 if (err == SFUD_ERR_NOT_FOUND) {
                     ESP_LOGE(MTD_TAG, "target flash not found or not supported.");
 
-                    mtd_send_rsponse(RSP_IDX_FAIL);
+                    mtd_send_response(RSP_IDX_FAIL);
                 } else if (err != SFUD_SUCCESS) {
                     ESP_LOGE(MTD_TAG, "failed to init target flash.");
 
-                    mtd_send_rsponse(RSP_IDX_FAIL);
+                    mtd_send_response(RSP_IDX_FAIL);
                 } else {
                     flash = sfud_get_device(SFUD_TARGET_DEVICE_INDEX);
 
@@ -175,11 +204,11 @@ void mtd_exec(esp_spp_cb_param_t *param)
                     if (err != SFUD_SUCCESS) {
                         ESP_LOGE(MTD_TAG, "chip erase failed.");
 
-                        mtd_send_rsponse(RSP_IDX_FAIL);
+                        mtd_send_response(RSP_IDX_FAIL);
                     } else {
                         ESP_LOGI(MTD_TAG, "chip erase done.");
 
-                        mtd_send_rsponse(RSP_IDX_DONE);
+                        mtd_send_response(RSP_IDX_DONE);
                     }
                 }
 
@@ -195,11 +224,11 @@ void mtd_exec(esp_spp_cb_param_t *param)
                     if (err == SFUD_ERR_NOT_FOUND) {
                         ESP_LOGE(MTD_TAG, "target flash not found or not supported.");
 
-                        mtd_send_rsponse(RSP_IDX_FAIL);
+                        mtd_send_response(RSP_IDX_FAIL);
                     } else if (err != SFUD_SUCCESS) {
                         ESP_LOGE(MTD_TAG, "failed to init target flash.");
 
-                        mtd_send_rsponse(RSP_IDX_FAIL);
+                        mtd_send_response(RSP_IDX_FAIL);
                     } else {
                         flash = sfud_get_device(SFUD_TARGET_DEVICE_INDEX);
 
@@ -210,15 +239,15 @@ void mtd_exec(esp_spp_cb_param_t *param)
                         if (err != SFUD_SUCCESS) {
                             ESP_LOGE(MTD_TAG, "erase failed.");
 
-                            mtd_send_rsponse(RSP_IDX_FAIL);
+                            mtd_send_response(RSP_IDX_FAIL);
                         } else {
                             ESP_LOGI(MTD_TAG, "erase done.");
 
-                            mtd_send_rsponse(RSP_IDX_DONE);
+                            mtd_send_response(RSP_IDX_DONE);
                         }
                     }
                 } else {
-                    mtd_send_rsponse(RSP_IDX_ERROR);
+                    mtd_send_response(RSP_IDX_ERROR);
                 }
 
                 break;
@@ -229,27 +258,27 @@ void mtd_exec(esp_spp_cb_param_t *param)
                 ESP_LOGI(MTD_TAG, "GET command: MTD+WRITE:0x%x+0x%x", addr, length);
 
                 if (length != 0) {
-                    conn_write = 1;
+                    data_recv = true;
 
                     sfud_err err = sfud_init();
                     if (err == SFUD_ERR_NOT_FOUND) {
                         ESP_LOGE(MTD_TAG, "target flash not found or not supported.");
 
-                        mtd_send_rsponse(RSP_IDX_FAIL);
+                        mtd_send_response(RSP_IDX_FAIL);
                     } else if (err != SFUD_SUCCESS) {
                         ESP_LOGE(MTD_TAG, "failed to init target flash.");
 
-                        mtd_send_rsponse(RSP_IDX_FAIL);
+                        mtd_send_response(RSP_IDX_FAIL);
                     } else {
                         data_addr = addr;
                         flash = sfud_get_device(SFUD_TARGET_DEVICE_INDEX);
 
                         ESP_LOGI(MTD_TAG, "write started.");
 
-                        mtd_send_rsponse(RSP_IDX_OK);
+                        mtd_send_response(RSP_IDX_OK);
                     }
                 } else {
-                    mtd_send_rsponse(RSP_IDX_ERROR);
+                    mtd_send_response(RSP_IDX_ERROR);
                 }
 
                 break;
@@ -264,21 +293,21 @@ void mtd_exec(esp_spp_cb_param_t *param)
                     if (err == SFUD_ERR_NOT_FOUND) {
                         ESP_LOGE(MTD_TAG, "target flash not found or not supported.");
 
-                        mtd_send_rsponse(RSP_IDX_FAIL);
+                        mtd_send_response(RSP_IDX_FAIL);
                     } else if (err != SFUD_SUCCESS) {
                         ESP_LOGE(MTD_TAG, "failed to init target flash.");
 
-                        mtd_send_rsponse(RSP_IDX_FAIL);
+                        mtd_send_response(RSP_IDX_FAIL);
                     } else {
                         data_addr = addr;
                         flash = sfud_get_device(SFUD_TARGET_DEVICE_INDEX);
 
-                        conn_handle = param->write.handle;
+                        mtd_send_response(RSP_IDX_OK);
 
                         xTaskCreatePinnedToCore(mtd_read_task, "mtdReadT", 4096, NULL, 9, NULL, 1);
                     }
                 } else {
-                    mtd_send_rsponse(RSP_IDX_ERROR);
+                    mtd_send_response(RSP_IDX_ERROR);
                 }
 
                 break;
@@ -291,11 +320,11 @@ void mtd_exec(esp_spp_cb_param_t *param)
                 if (err == SFUD_ERR_NOT_FOUND) {
                     ESP_LOGE(MTD_TAG, "target flash not found or not supported.");
 
-                    mtd_send_rsponse(RSP_IDX_FAIL);
+                    mtd_send_response(RSP_IDX_FAIL);
                 } else if (err != SFUD_SUCCESS) {
                     ESP_LOGE(MTD_TAG, "failed to init target flash.");
 
-                    mtd_send_rsponse(RSP_IDX_FAIL);
+                    mtd_send_response(RSP_IDX_FAIL);
                 } else {
                     const sfud_mf mf_table[] = SFUD_MF_TABLE;
                     const char *flash_mf_name = NULL;
@@ -311,11 +340,11 @@ void mtd_exec(esp_spp_cb_param_t *param)
 
                     char str_buf[40] = {0};
                     if (flash_mf_name && flash->chip.name) {
-                        snprintf(str_buf, sizeof(str_buf), "INFO:%s,%s,%u\r\n", flash_mf_name, flash->chip.name, flash->chip.capacity);
+                        snprintf(str_buf, sizeof(str_buf), "%s,%s,%u\r\n", flash_mf_name, flash->chip.name, flash->chip.capacity);
                     } else if (flash_mf_name) {
-                        snprintf(str_buf, sizeof(str_buf), "INFO:%s,%u\r\n", flash_mf_name, flash->chip.capacity);
+                        snprintf(str_buf, sizeof(str_buf), "%s,%u\r\n", flash_mf_name, flash->chip.capacity);
                     } else {
-                        snprintf(str_buf, sizeof(str_buf), "INFO:%u\r\n", flash->chip.capacity);
+                        snprintf(str_buf, sizeof(str_buf), "%u\r\n", flash->chip.capacity);
                     }
 
                     mtd_send_data(str_buf, strlen(str_buf));
@@ -326,11 +355,16 @@ void mtd_exec(esp_spp_cb_param_t *param)
             default:
                 ESP_LOGW(MTD_TAG, "unknown command.");
 
-                mtd_send_rsponse(RSP_IDX_ERROR);
+                mtd_send_response(RSP_IDX_ERROR);
 
                 break;
         }
     } else {
+        if (!conn_handle) {
+            data_recv = false;
+            return;
+        }
+
         sfud_err err = SFUD_SUCCESS;
         uint32_t remain = length - (data_addr - addr);
 
@@ -345,27 +379,31 @@ void mtd_exec(esp_spp_cb_param_t *param)
         if (err != SFUD_SUCCESS) {
             ESP_LOGE(MTD_TAG, "write failed.");
 
-            conn_write = 0;
+            data_recv = false;
 
-            mtd_send_rsponse(RSP_IDX_FAIL);
+            mtd_send_response(RSP_IDX_FAIL);
         } else if ((data_addr - addr) == length) {
             ESP_LOGI(MTD_TAG, "write done.");
 
-            conn_write = 0;
+            data_recv = false;
 
-            mtd_send_rsponse(RSP_IDX_DONE);
+            mtd_send_response(RSP_IDX_DONE);
         }
     }
 }
 
-void mtd_cong(bool cong, bool flag)
+void mtd_update(bool cong, bool sent)
 {
-    conn_cong = cong;
-    conn_flag = flag;
+    data_cong = cong;
+    data_sent = sent;
 }
 
 void mtd_end(void)
 {
-    conn_write = 0;
     conn_handle = 0;
+
+    if (data_recv) {
+        data_recv = false;
+        ESP_LOGE(MTD_TAG, "write aborted.");
+    }
 }

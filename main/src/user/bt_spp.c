@@ -51,10 +51,10 @@ void bt_app_spp_cb(esp_spp_cb_event_t event, esp_spp_cb_param_t *param)
         mtd_exec(param);
         break;
     case ESP_SPP_CONG_EVT:
-        mtd_cong(param->cong.cong, true);
+        mtd_update(param->cong.cong, true);
         break;
     case ESP_SPP_WRITE_EVT:
-        mtd_cong(param->write.cong, true);
+        mtd_update(param->write.cong, true);
         break;
     case ESP_SPP_SRV_OPEN_EVT:
         esp_bt_gap_set_scan_mode(ESP_BT_NON_CONNECTABLE, ESP_BT_NON_DISCOVERABLE);
