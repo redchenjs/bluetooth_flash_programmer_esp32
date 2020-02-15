@@ -11,6 +11,7 @@
 #include "esp_spp_api.h"
 
 #include "freertos/FreeRTOS.h"
+#include "freertos/ringbuf.h"
 #include "freertos/task.h"
 
 #include "sfud.h"
@@ -70,6 +71,10 @@ static bool data_sent = false;
 static bool data_recv = false;
 static uint32_t conn_handle = 0;
 
+static uint8_t data_buff[990] = {0};
+static RingbufHandle_t buff_handle = NULL;
+static StaticRingbuffer_t buff_struct = {0};
+
 static uint32_t data_addr = 0;
 static uint32_t addr = 0, length = 0;
 static sfud_flash *flash = NULL;
@@ -84,11 +89,65 @@ static int mtd_parse_command(esp_spp_cb_param_t *param)
     return -1;
 }
 
+static void mtd_write_task(void *pvParameter)
+{
+    uint8_t *data = NULL;
+    uint32_t size = 0;
+    sfud_err err = SFUD_SUCCESS;
+
+    ESP_LOGI(MTD_TAG, "write started.");
+
+    do {
+        data = (uint8_t *)xRingbufferReceive(buff_handle, &size, portMAX_DELAY);
+
+        if (size != 0) {
+            uint32_t remain = length - (data_addr - addr);
+
+            if (size > remain) {
+                err = sfud_write(flash, data_addr, remain, (const uint8_t *)data);
+                data_addr += remain;
+            } else {
+                err = sfud_write(flash, data_addr, size, (const uint8_t *)data);
+                data_addr += size;
+            }
+
+            if (err != SFUD_SUCCESS) {
+                ESP_LOGE(MTD_TAG, "write failed.");
+
+                data_err = true;
+
+                mtd_send_response(RSP_IDX_FAIL);
+
+                goto write_fail;
+            }
+
+            vRingbufferReturnItem(buff_handle, (void *)data);
+        }
+
+        if (!data_recv) {
+            ESP_LOGE(MTD_TAG, "write aborted.");
+
+            goto write_fail;
+        }
+    } while ((data_addr - addr) != length);
+
+    ESP_LOGI(MTD_TAG, "write done.");
+
+    mtd_send_response(RSP_IDX_DONE);
+
+write_fail:
+    vRingbufferDelete(buff_handle);
+
+    buff_handle = NULL;
+    data_recv = false;
+
+    vTaskDelete(NULL);
+}
+
 static void mtd_read_task(void *pvParameter)
 {
     portTickType xLastWakeTime;
     sfud_err err = SFUD_SUCCESS;
-    uint8_t data_buff[990] = {0};
 
     ESP_LOGI(MTD_TAG, "read started.");
 
@@ -106,7 +165,7 @@ static void mtd_read_task(void *pvParameter)
 
             mtd_send_response(RSP_IDX_FAIL);
 
-            goto fail;
+            goto read_fail;
         }
 
         while (data_cong || !data_sent) {
@@ -114,7 +173,8 @@ static void mtd_read_task(void *pvParameter)
 
             if (!conn_handle) {
                 ESP_LOGE(MTD_TAG, "read aborted.");
-                vTaskDelete(NULL);
+
+                goto read_fail;
             }
 
             vTaskDelayUntil(&xLastWakeTime, 1 / portTICK_RATE_MS);
@@ -125,7 +185,8 @@ static void mtd_read_task(void *pvParameter)
 
         if (!conn_handle) {
             ESP_LOGE(MTD_TAG, "read aborted.");
-            vTaskDelete(NULL);
+
+            goto read_fail;
         }
 
         mtd_send_data(data_buff, 990);
@@ -142,7 +203,7 @@ static void mtd_read_task(void *pvParameter)
 
             mtd_send_response(RSP_IDX_FAIL);
 
-            goto fail;
+            goto read_fail;
         }
 
         while (data_cong || !data_sent) {
@@ -150,7 +211,8 @@ static void mtd_read_task(void *pvParameter)
 
             if (!conn_handle) {
                 ESP_LOGE(MTD_TAG, "read aborted.");
-                vTaskDelete(NULL);
+
+                goto read_fail;
             }
 
             vTaskDelayUntil(&xLastWakeTime, 1 / portTICK_RATE_MS);
@@ -158,7 +220,8 @@ static void mtd_read_task(void *pvParameter)
 
         if (!conn_handle) {
             ESP_LOGE(MTD_TAG, "read aborted.");
-            vTaskDelete(NULL);
+
+            goto read_fail;
         }
 
         mtd_send_data(data_buff, data_remain);
@@ -166,7 +229,7 @@ static void mtd_read_task(void *pvParameter)
 
     ESP_LOGI(MTD_TAG, "read done.");
 
-fail:
+read_fail:
     conn_handle = 0;
 
     vTaskDelete(NULL);
@@ -279,9 +342,14 @@ void mtd_exec(esp_spp_cb_param_t *param)
                         data_addr = addr;
                         flash = sfud_get_device(SFUD_TARGET_DEVICE_INDEX);
 
-                        ESP_LOGI(MTD_TAG, "write started.");
+                        buff_handle = xRingbufferCreateStatic(sizeof(data_buff), RINGBUF_TYPE_BYTEBUF, data_buff, &buff_struct);
+                        if (!buff_handle) {
+                            mtd_send_response(RSP_IDX_ERROR);
+                        } else {
+                            mtd_send_response(RSP_IDX_OK);
 
-                        mtd_send_response(RSP_IDX_OK);
+                            xTaskCreatePinnedToCore(mtd_write_task, "mtdWriteT", 4096, NULL, 9, NULL, 1);
+                        }
                     }
                 } else {
                     mtd_send_response(RSP_IDX_ERROR);
@@ -365,30 +433,8 @@ void mtd_exec(esp_spp_cb_param_t *param)
                 break;
         }
     } else {
-        sfud_err err = SFUD_SUCCESS;
-        uint32_t remain = length - (data_addr - addr);
-
-        if (param->data_ind.len > remain) {
-            err = sfud_write(flash, data_addr, remain, (const uint8_t *)param->data_ind.data);
-            data_addr += remain;
-        } else {
-            err = sfud_write(flash, data_addr, param->data_ind.len, (const uint8_t *)param->data_ind.data);
-            data_addr += param->data_ind.len;
-        }
-
-        if (err != SFUD_SUCCESS) {
-            ESP_LOGE(MTD_TAG, "write failed.");
-
-            data_err = true;
-            data_recv = false;
-
-            mtd_send_response(RSP_IDX_FAIL);
-        } else if ((data_addr - addr) == length) {
-            ESP_LOGI(MTD_TAG, "write done.");
-
-            data_recv = false;
-
-            mtd_send_response(RSP_IDX_DONE);
+        if (buff_handle) {
+            xRingbufferSend(buff_handle, (void *)param->data_ind.data, param->data_ind.len, portMAX_DELAY);
         }
     }
 }
@@ -402,10 +448,7 @@ void mtd_update(bool cong, bool sent)
 void mtd_end(void)
 {
     conn_handle = 0;
-    data_err = false;
 
-    if (data_recv) {
-        data_recv = false;
-        ESP_LOGE(MTD_TAG, "write aborted.");
-    }
+    data_err = false;
+    data_recv = false;
 }
