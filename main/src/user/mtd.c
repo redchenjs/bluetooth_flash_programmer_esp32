@@ -412,16 +412,19 @@ void mtd_exec(esp_spp_cb_param_t *param)
                         }
                     }
 
-                    char str_buf[40] = {0};
+                    char rsp_str[40] = {0};
                     if (flash_mf_name && flash->chip.name) {
-                        snprintf(str_buf, sizeof(str_buf), "%s,%s,%u\r\n", flash_mf_name, flash->chip.name, flash->chip.capacity);
+                        snprintf(rsp_str, sizeof(rsp_str), "%s,%s,%u\r\n", flash_mf_name, flash->chip.name, flash->chip.capacity);
+                        ESP_LOGI(MTD_TAG, "manufactor: %s, chip name: %s, capacity: %u bytes", flash_mf_name, flash->chip.name, flash->chip.capacity);
                     } else if (flash_mf_name) {
-                        snprintf(str_buf, sizeof(str_buf), "%s,%u\r\n", flash_mf_name, flash->chip.capacity);
+                        snprintf(rsp_str, sizeof(rsp_str), "%s,%u\r\n", flash_mf_name, flash->chip.capacity);
+                        ESP_LOGI(MTD_TAG, "manufactor: %s, capacity: %u bytes", flash_mf_name, flash->chip.capacity);
                     } else {
-                        snprintf(str_buf, sizeof(str_buf), "%u\r\n", flash->chip.capacity);
+                        snprintf(rsp_str, sizeof(rsp_str), "%u\r\n", flash->chip.capacity);
+                        ESP_LOGI(MTD_TAG, "capacity: %u bytes", flash->chip.capacity);
                     }
 
-                    mtd_send_data(str_buf, strlen(str_buf));
+                    mtd_send_data(rsp_str, strlen(rsp_str));
                 }
 
                 break;
