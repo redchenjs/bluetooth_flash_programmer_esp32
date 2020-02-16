@@ -97,39 +97,41 @@ static void mtd_write_task(void *pvParameter)
 
     ESP_LOGI(MTD_TAG, "write started.");
 
-    do {
+    while ((data_addr - addr) != length) {
         if (!conn_handle || !data_recv) {
             ESP_LOGE(MTD_TAG, "write aborted.");
 
             goto write_fail;
         }
 
-        data = (uint8_t *)xRingbufferReceive(buff_handle, &size, 10 / portTICK_RATE_MS);
+        uint32_t remain = length - (data_addr - addr);
 
-        if (data != NULL && size != 0) {
-            uint32_t remain = length - (data_addr - addr);
-
-            if (size > remain) {
-                err = sfud_write(flash, data_addr, remain, (const uint8_t *)data);
-                data_addr += remain;
-            } else {
-                err = sfud_write(flash, data_addr, size, (const uint8_t *)data);
-                data_addr += size;
-            }
-
-            if (err != SFUD_SUCCESS) {
-                ESP_LOGE(MTD_TAG, "write failed.");
-
-                data_err = true;
-
-                mtd_send_response(RSP_IDX_FAIL);
-
-                goto write_fail;
-            }
-
-            vRingbufferReturnItem(buff_handle, (void *)data);
+        if (remain >= 990) {
+            data = (uint8_t *)xRingbufferReceiveUpTo(buff_handle, &size, 10 / portTICK_RATE_MS, 990);
+        } else {
+            data = (uint8_t *)xRingbufferReceiveUpTo(buff_handle, &size, 10 / portTICK_RATE_MS, remain);
         }
-    } while ((data_addr - addr) != length);
+
+        if (data == NULL || size == 0) {
+            continue;
+        }
+
+        err = sfud_write(flash, data_addr, size, (const uint8_t *)data);
+
+        data_addr += size;
+
+        if (err != SFUD_SUCCESS) {
+            ESP_LOGE(MTD_TAG, "write failed.");
+
+            data_err = true;
+
+            mtd_send_response(RSP_IDX_FAIL);
+
+            goto write_fail;
+        }
+
+        vRingbufferReturnItem(buff_handle, (void *)data);
+    }
 
     ESP_LOGI(MTD_TAG, "write done.");
 
