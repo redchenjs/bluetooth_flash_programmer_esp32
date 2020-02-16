@@ -98,9 +98,15 @@ static void mtd_write_task(void *pvParameter)
     ESP_LOGI(MTD_TAG, "write started.");
 
     do {
+        if (!conn_handle || !data_recv) {
+            ESP_LOGE(MTD_TAG, "write aborted.");
+
+            goto write_fail;
+        }
+
         data = (uint8_t *)xRingbufferReceive(buff_handle, &size, 10 / portTICK_RATE_MS);
 
-        if (size != 0) {
+        if (data != NULL && size != 0) {
             uint32_t remain = length - (data_addr - addr);
 
             if (size > remain) {
@@ -123,12 +129,6 @@ static void mtd_write_task(void *pvParameter)
 
             vRingbufferReturnItem(buff_handle, (void *)data);
         }
-
-        if (!data_recv) {
-            ESP_LOGE(MTD_TAG, "write aborted.");
-
-            goto write_fail;
-        }
     } while ((data_addr - addr) != length);
 
     ESP_LOGI(MTD_TAG, "write done.");
@@ -137,9 +137,10 @@ static void mtd_write_task(void *pvParameter)
 
 write_fail:
     vRingbufferDelete(buff_handle);
-
     buff_handle = NULL;
+
     data_recv = false;
+    conn_handle = 0;
 
     vTaskDelete(NULL);
 }
