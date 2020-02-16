@@ -1,8 +1,8 @@
-menu "SPP Flash Programmer"
+menu "Easy Flash Programmer"
 
 config BT_NAME
     string "Bluetooth Name"
-    default "SPP Flash Programmer"
+    default "Easy Flash Programmer"
     help
         Bluetooth name exposed by the device.
 
