@@ -98,7 +98,7 @@ static void mtd_write_task(void *pvParameter)
     ESP_LOGI(MTD_TAG, "write started.");
 
     do {
-        data = (uint8_t *)xRingbufferReceive(buff_handle, &size, portMAX_DELAY);
+        data = (uint8_t *)xRingbufferReceive(buff_handle, &size, 10 / portTICK_RATE_MS);
 
         if (size != 0) {
             uint32_t remain = length - (data_addr - addr);
