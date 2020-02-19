@@ -71,7 +71,7 @@ static bool data_sent = false;
 static bool data_recv = false;
 static uint32_t conn_handle = 0;
 
-static uint8_t data_buff[990*2] = {0};
+static uint8_t data_buff[990] = {0};
 static RingbufHandle_t buff_handle = NULL;
 static StaticRingbuffer_t buff_struct = {0};
 
