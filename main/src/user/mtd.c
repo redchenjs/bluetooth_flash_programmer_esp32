@@ -16,13 +16,15 @@
 
 #include "sfud.h"
 
+#include "user/bt_spp.h"
+
 #define MTD_TAG "mtd"
 
 #define mtd_send_response(X) \
-    esp_spp_write(conn_handle, strlen(rsp_str[X]), (uint8_t *)rsp_str[X])
+    esp_spp_write(spp_conn_handle, strlen(rsp_str[X]), (uint8_t *)rsp_str[X])
 
 #define mtd_send_data(X, N) \
-    esp_spp_write(conn_handle, N, (uint8_t *)X)
+    esp_spp_write(spp_conn_handle, N, (uint8_t *)X)
 
 #define CMD_FMT_ERASE_ALL   "MTD+ERASE:ALL!"
 #define CMD_FMT_ERASE       "MTD+ERASE:0x%x+0x%x"
@@ -69,9 +71,8 @@ static bool data_err = false;
 static bool data_cong = false;
 static bool data_sent = false;
 static bool data_recv = false;
-static uint32_t conn_handle = 0;
 
-static uint8_t data_buff[990*2] = {0};
+static uint8_t data_buff[990] = {0};
 static RingbufHandle_t buff_handle = NULL;
 static StaticRingbuffer_t buff_struct = {0};
 
@@ -98,7 +99,7 @@ static void mtd_write_task(void *pvParameter)
     ESP_LOGI(MTD_TAG, "write started.");
 
     while ((data_addr - addr) != length) {
-        if (!conn_handle || !data_recv) {
+        if (!data_recv) {
             ESP_LOGE(MTD_TAG, "write aborted.");
 
             goto write_fail;
@@ -142,7 +143,6 @@ write_fail:
     buff_handle = NULL;
 
     data_recv = false;
-    conn_handle = 0;
 
     vTaskDelete(NULL);
 }
@@ -174,7 +174,7 @@ static void mtd_read_task(void *pvParameter)
         while (data_cong || !data_sent) {
             xLastWakeTime = xTaskGetTickCount();
 
-            if (!conn_handle) {
+            if (!spp_conn_handle) {
                 ESP_LOGE(MTD_TAG, "read aborted.");
 
                 goto read_fail;
@@ -186,7 +186,7 @@ static void mtd_read_task(void *pvParameter)
         data_cong = false;
         data_sent = false;
 
-        if (!conn_handle) {
+        if (!spp_conn_handle) {
             ESP_LOGE(MTD_TAG, "read aborted.");
 
             goto read_fail;
@@ -212,7 +212,7 @@ static void mtd_read_task(void *pvParameter)
         while (data_cong || !data_sent) {
             xLastWakeTime = xTaskGetTickCount();
 
-            if (!conn_handle) {
+            if (!spp_conn_handle) {
                 ESP_LOGE(MTD_TAG, "read aborted.");
 
                 goto read_fail;
@@ -221,7 +221,7 @@ static void mtd_read_task(void *pvParameter)
             vTaskDelayUntil(&xLastWakeTime, 1 / portTICK_RATE_MS);
         }
 
-        if (!conn_handle) {
+        if (!spp_conn_handle) {
             ESP_LOGE(MTD_TAG, "read aborted.");
 
             goto read_fail;
@@ -233,8 +233,6 @@ static void mtd_read_task(void *pvParameter)
     ESP_LOGI(MTD_TAG, "read done.");
 
 read_fail:
-    conn_handle = 0;
-
     vTaskDelete(NULL);
 }
 
@@ -250,8 +248,6 @@ void mtd_exec(esp_spp_cb_param_t *param)
         if (flash) {
             memset(&flash->chip, 0x00, sizeof(sfud_flash_chip));
         }
-
-        conn_handle = param->write.handle;
 
         switch (cmd_idx) {
             case CMD_IDX_ERASE_ALL: {
@@ -455,8 +451,6 @@ void mtd_update(bool cong, bool sent)
 
 void mtd_end(void)
 {
-    conn_handle = 0;
-
     data_err = false;
     data_recv = false;
 }

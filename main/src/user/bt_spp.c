@@ -15,6 +15,8 @@
 
 #define BT_SPP_TAG "bt_spp"
 
+uint32_t spp_conn_handle = 0;
+
 static esp_bd_addr_t spp_remote_bda = {0};
 static const char *s_spp_conn_state_str[] = {"disconnected", "connected"};
 
@@ -39,6 +41,8 @@ void bt_app_spp_cb(esp_spp_cb_event_t event, esp_spp_cb_param_t *param)
 
         memset(&spp_remote_bda, 0x00, sizeof(esp_bd_addr_t));
 
+        spp_conn_handle = 0;
+
         mtd_end();
 
         esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
@@ -58,6 +62,8 @@ void bt_app_spp_cb(esp_spp_cb_event_t event, esp_spp_cb_param_t *param)
         break;
     case ESP_SPP_SRV_OPEN_EVT:
         esp_bt_gap_set_scan_mode(ESP_BT_NON_CONNECTABLE, ESP_BT_NON_DISCOVERABLE);
+
+        spp_conn_handle = param->srv_open.handle;
 
         memcpy(&spp_remote_bda, param->srv_open.rem_bda, sizeof(esp_bd_addr_t));
 
