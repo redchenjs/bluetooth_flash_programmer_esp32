@@ -71,9 +71,10 @@ static bool data_sent = false;
 static bool data_recv = false;
 static uint32_t conn_handle = 0;
 
-static uint8_t data_buff[990] = {0};
-static RingbufHandle_t buff_handle = NULL;
+static uint8_t buff_data[990] = {0};
 static StaticRingbuffer_t buff_struct = {0};
+
+static RingbufHandle_t mtd_buff = NULL;
 
 static uint32_t data_addr = 0;
 static uint32_t addr = 0, length = 0;
@@ -107,9 +108,9 @@ static void mtd_write_task(void *pvParameter)
         uint32_t remain = length - (data_addr - addr);
 
         if (remain >= 990) {
-            data = (uint8_t *)xRingbufferReceiveUpTo(buff_handle, &size, 10 / portTICK_RATE_MS, 990);
+            data = (uint8_t *)xRingbufferReceiveUpTo(mtd_buff, &size, 10 / portTICK_RATE_MS, 990);
         } else {
-            data = (uint8_t *)xRingbufferReceiveUpTo(buff_handle, &size, 10 / portTICK_RATE_MS, remain);
+            data = (uint8_t *)xRingbufferReceiveUpTo(mtd_buff, &size, 10 / portTICK_RATE_MS, remain);
         }
 
         if (data == NULL || size == 0) {
@@ -130,7 +131,7 @@ static void mtd_write_task(void *pvParameter)
             goto write_fail;
         }
 
-        vRingbufferReturnItem(buff_handle, (void *)data);
+        vRingbufferReturnItem(mtd_buff, (void *)data);
     }
 
     ESP_LOGI(MTD_TAG, "write done.");
@@ -138,8 +139,8 @@ static void mtd_write_task(void *pvParameter)
     mtd_send_response(RSP_IDX_DONE);
 
 write_fail:
-    vRingbufferDelete(buff_handle);
-    buff_handle = NULL;
+    vRingbufferDelete(mtd_buff);
+    mtd_buff = NULL;
 
     data_recv = false;
     conn_handle = 0;
@@ -159,7 +160,7 @@ static void mtd_read_task(void *pvParameter)
 
     uint32_t pkt = 0;
     for (pkt=0; pkt<length/990; pkt++) {
-        err = sfud_read(flash, data_addr, 990, data_buff);
+        err = sfud_read(flash, data_addr, 990, buff_data);
 
         data_addr += 990;
 
@@ -192,12 +193,12 @@ static void mtd_read_task(void *pvParameter)
             goto read_fail;
         }
 
-        mtd_send_data(data_buff, 990);
+        mtd_send_data(buff_data, 990);
     }
 
     uint32_t data_remain = length - pkt * 990;
     if (data_remain != 0 && data_remain < 990) {
-        err = sfud_read(flash, data_addr, data_remain, data_buff);
+        err = sfud_read(flash, data_addr, data_remain, buff_data);
 
         data_addr += data_remain;
 
@@ -227,7 +228,7 @@ static void mtd_read_task(void *pvParameter)
             goto read_fail;
         }
 
-        mtd_send_data(data_buff, data_remain);
+        mtd_send_data(buff_data, data_remain);
     }
 
     ESP_LOGI(MTD_TAG, "read done.");
@@ -347,8 +348,8 @@ void mtd_exec(esp_spp_cb_param_t *param)
 
                         memset(&buff_struct, 0x00, sizeof(StaticRingbuffer_t));
 
-                        buff_handle = xRingbufferCreateStatic(sizeof(data_buff), RINGBUF_TYPE_BYTEBUF, data_buff, &buff_struct);
-                        if (!buff_handle) {
+                        mtd_buff = xRingbufferCreateStatic(sizeof(buff_data), RINGBUF_TYPE_BYTEBUF, buff_data, &buff_struct);
+                        if (!mtd_buff) {
                             mtd_send_response(RSP_IDX_ERROR);
                         } else {
                             mtd_send_response(RSP_IDX_OK);
@@ -441,8 +442,8 @@ void mtd_exec(esp_spp_cb_param_t *param)
                 break;
         }
     } else {
-        if (buff_handle) {
-            xRingbufferSend(buff_handle, (void *)param->data_ind.data, param->data_ind.len, portMAX_DELAY);
+        if (mtd_buff) {
+            xRingbufferSend(mtd_buff, (void *)param->data_ind.data, param->data_ind.len, portMAX_DELAY);
         }
     }
 }
