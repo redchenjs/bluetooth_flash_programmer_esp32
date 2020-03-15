@@ -1,7 +1,7 @@
-Easy Flash Programmer
-=====================
+Bluetooth Flash Programmer
+==========================
 
-Bluetooth Easy Flash Programmer based on ESP32 chip.
+Bluetooth Flash Programmer based on ESP32 chip.
 
 ## Pinmap
 
@@ -22,7 +22,7 @@ Bluetooth Easy Flash Programmer based on ESP32 chip.
 ### Obtain the Source
 
 ```
-git clone --recursive https://github.com/redchenjs/easy_flash_programmer_esp32.git
+git clone --recursive https://github.com/redchenjs/bluetooth_flash_programmer_esp32.git
 ```
 
 ### Update an existing repository
@@ -53,7 +53,7 @@ source ./esp-idf/export.sh
 idf.py menuconfig
 ```
 
-* All project configurations are under the `Easy Flash Programmer` menu.
+* All project configurations are under the `Bluetooth Flash Programmer` menu.
 
 ### Flash & Monitor
 
