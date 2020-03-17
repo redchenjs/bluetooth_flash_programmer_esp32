@@ -55,8 +55,7 @@ static sfud_err spi_write_read(const sfud_spi *spi, const uint8_t *write_buf, si
 
 static void retry_delay_1ms(void)
 {
-    portTickType xLastWakeTime = xTaskGetTickCount();
-    vTaskDelayUntil(&xLastWakeTime, 1 / portTICK_RATE_MS);
+    vTaskDelay(1 / portTICK_RATE_MS);
 }
 
 sfud_err sfud_spi_port_init(sfud_flash *flash)
