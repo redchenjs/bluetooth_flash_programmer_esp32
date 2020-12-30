@@ -5,8 +5,6 @@
  *      Author: Jack Chen <redchenjs@live.com>
  */
 
-#include <string.h>
-
 #include "esp_bt.h"
 #include "esp_log.h"
 #include "esp_bt_main.h"
@@ -14,7 +12,7 @@
 
 #define TAG "bt"
 
-char bt_mac_str[18] = {0};
+const char *bt_dev_address = NULL;
 
 void bt_init(void)
 {
@@ -26,7 +24,7 @@ void bt_init(void)
     ESP_ERROR_CHECK(esp_bluedroid_init());
     ESP_ERROR_CHECK(esp_bluedroid_enable());
 
-    snprintf(bt_mac_str, sizeof(bt_mac_str), MACSTR, MAC2STR(esp_bt_dev_get_address()));
+    bt_dev_address = (const char *)esp_bt_dev_get_address();
 
-    ESP_LOGI(TAG, "initialized, addr: [%s]", bt_mac_str);
+    ESP_LOGI(TAG, "initialized, bt: 1, ble: 0");
 }

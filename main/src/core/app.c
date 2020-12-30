@@ -5,8 +5,6 @@
  *      Author: Jack Chen <redchenjs@live.com>
  */
 
-#include <string.h>
-
 #include "esp_log.h"
 #include "esp_ota_ops.h"
 
@@ -17,9 +15,7 @@
 
 const char *app_get_version(void)
 {
-    const esp_app_desc_t *app_desc = esp_ota_get_app_description();
-
-    return (const char *)app_desc->version;
+    return esp_ota_get_app_description()->version;
 }
 
 void app_print_info(void)

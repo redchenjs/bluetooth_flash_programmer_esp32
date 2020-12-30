@@ -24,18 +24,20 @@
 #define mtd_send_data(X, N) \
     esp_spp_write(conn_handle, N, (uint8_t *)X)
 
-#define CMD_FMT_ERASE_ALL   "MTD+ERASE:ALL!"
-#define CMD_FMT_ERASE       "MTD+ERASE:0x%x+0x%x"
-#define CMD_FMT_WRITE       "MTD+WRITE:0x%x+0x%x"
-#define CMD_FMT_READ        "MTD+READ:0x%x+0x%x"
-#define CMD_FMT_INFO        "MTD+INFO?"
+#define RX_BUF_SIZE 990
+
+#define CMD_FMT_ERASE_ALL "MTD+ERASE:ALL!"
+#define CMD_FMT_ERASE     "MTD+ERASE:0x%x+0x%x"
+#define CMD_FMT_WRITE     "MTD+WRITE:0x%x+0x%x"
+#define CMD_FMT_READ      "MTD+READ:0x%x+0x%x"
+#define CMD_FMT_INFO      "MTD+INFO?"
 
 enum cmd_idx {
     CMD_IDX_ERASE_ALL = 0x0,
     CMD_IDX_ERASE     = 0x1,
     CMD_IDX_WRITE     = 0x2,
     CMD_IDX_READ      = 0x3,
-    CMD_IDX_INFO      = 0x4,
+    CMD_IDX_INFO      = 0x4
 };
 
 typedef struct {
@@ -44,25 +46,25 @@ typedef struct {
 } cmd_fmt_t;
 
 static const cmd_fmt_t cmd_fmt[] = {
-    { .prefix = 16, .format = CMD_FMT_ERASE_ALL"\r\n" },   // Erase Full Flash Chip
-    { .prefix = 12, .format = CMD_FMT_ERASE"\r\n" },       // Erase Flash: Addr Length
-    { .prefix = 12, .format = CMD_FMT_WRITE"\r\n" },       // Write Flash: Addr Length
-    { .prefix = 11, .format = CMD_FMT_READ"\r\n" },        // Read Flash:  Addr Length
-    { .prefix = 11, .format = CMD_FMT_INFO"\r\n" },        // Flash Info
+    { .prefix = 16, .format = CMD_FMT_ERASE_ALL"\r\n" },
+    { .prefix = 12, .format = CMD_FMT_ERASE"\r\n" },
+    { .prefix = 12, .format = CMD_FMT_WRITE"\r\n" },
+    { .prefix = 11, .format = CMD_FMT_READ"\r\n" },
+    { .prefix = 11, .format = CMD_FMT_INFO"\r\n" }
 };
 
 enum rsp_idx {
     RSP_IDX_OK    = 0x0,
     RSP_IDX_FAIL  = 0x1,
     RSP_IDX_DONE  = 0x2,
-    RSP_IDX_ERROR = 0x3,
+    RSP_IDX_ERROR = 0x3
 };
 
 static const char rsp_str[][32] = {
-    "OK\r\n",           // OK
-    "FAIL\r\n",         // Fail
-    "DONE\r\n",         // Done
-    "ERROR\r\n",        // Error
+    "OK\r\n",
+    "FAIL\r\n",
+    "DONE\r\n",
+    "ERROR\r\n"
 };
 
 static bool data_err = false;
@@ -71,7 +73,7 @@ static bool data_sent = false;
 static bool data_recv = false;
 static uint32_t conn_handle = 0;
 
-static uint8_t buff_data[990] = {0};
+static uint8_t buff_data[RX_BUF_SIZE] = {0};
 static StaticRingbuffer_t buff_struct = {0};
 
 static RingbufHandle_t mtd_buff = NULL;
@@ -82,7 +84,7 @@ static sfud_flash *flash = NULL;
 
 static int mtd_parse_command(esp_spp_cb_param_t *param)
 {
-    for (int i=0; i<sizeof(cmd_fmt)/sizeof(cmd_fmt_t); i++) {
+    for (int i = 0; i < sizeof(cmd_fmt) / sizeof(cmd_fmt_t); i++) {
         if (strncmp(cmd_fmt[i].format, (const char *)param->data_ind.data, cmd_fmt[i].prefix) == 0) {
             return i;
         }
@@ -107,8 +109,8 @@ static void mtd_write_task(void *pvParameter)
 
         uint32_t remain = length - (data_addr - addr);
 
-        if (remain >= 990) {
-            data = (uint8_t *)xRingbufferReceiveUpTo(mtd_buff, &size, 10 / portTICK_RATE_MS, 990);
+        if (remain >= RX_BUF_SIZE) {
+            data = (uint8_t *)xRingbufferReceiveUpTo(mtd_buff, &size, 10 / portTICK_RATE_MS, RX_BUF_SIZE);
         } else {
             data = (uint8_t *)xRingbufferReceiveUpTo(mtd_buff, &size, 10 / portTICK_RATE_MS, remain);
         }
@@ -159,10 +161,10 @@ static void mtd_read_task(void *pvParameter)
     data_sent = true;
 
     uint32_t pkt = 0;
-    for (pkt=0; pkt<length/990; pkt++) {
-        err = sfud_read(flash, data_addr, 990, buff_data);
+    for (pkt = 0; pkt < length / RX_BUF_SIZE; pkt++) {
+        err = sfud_read(flash, data_addr, RX_BUF_SIZE, buff_data);
 
-        data_addr += 990;
+        data_addr += RX_BUF_SIZE;
 
         if (err != SFUD_SUCCESS) {
             ESP_LOGE(MTD_TAG, "read failed.");
@@ -193,11 +195,11 @@ static void mtd_read_task(void *pvParameter)
             goto read_fail;
         }
 
-        mtd_send_data(buff_data, 990);
+        mtd_send_data(buff_data, RX_BUF_SIZE);
     }
 
-    uint32_t data_remain = length - pkt * 990;
-    if (data_remain != 0 && data_remain < 990) {
+    uint32_t data_remain = length - pkt * RX_BUF_SIZE;
+    if (data_remain != 0 && data_remain < RX_BUF_SIZE) {
         err = sfud_read(flash, data_addr, data_remain, buff_data);
 
         data_addr += data_remain;
@@ -268,7 +270,7 @@ void mtd_exec(esp_spp_cb_param_t *param)
 
                     mtd_send_response(RSP_IDX_FAIL);
                 } else {
-                    flash = sfud_get_device(SFUD_TARGET_DEVICE_INDEX);
+                    flash = sfud_get_device(SFUD_FLASH_DEVICE_INDEX);
 
                     ESP_LOGI(MTD_TAG, "chip erase started.");
 
@@ -303,7 +305,7 @@ void mtd_exec(esp_spp_cb_param_t *param)
 
                         mtd_send_response(RSP_IDX_FAIL);
                     } else {
-                        flash = sfud_get_device(SFUD_TARGET_DEVICE_INDEX);
+                        flash = sfud_get_device(SFUD_FLASH_DEVICE_INDEX);
 
                         ESP_LOGI(MTD_TAG, "erase started.");
 
@@ -344,7 +346,7 @@ void mtd_exec(esp_spp_cb_param_t *param)
                         mtd_send_response(RSP_IDX_FAIL);
                     } else {
                         data_addr = addr;
-                        flash = sfud_get_device(SFUD_TARGET_DEVICE_INDEX);
+                        flash = sfud_get_device(SFUD_FLASH_DEVICE_INDEX);
 
                         memset(&buff_struct, 0x00, sizeof(StaticRingbuffer_t));
 
@@ -380,7 +382,7 @@ void mtd_exec(esp_spp_cb_param_t *param)
                         mtd_send_response(RSP_IDX_FAIL);
                     } else {
                         data_addr = addr;
-                        flash = sfud_get_device(SFUD_TARGET_DEVICE_INDEX);
+                        flash = sfud_get_device(SFUD_FLASH_DEVICE_INDEX);
 
                         mtd_send_response(RSP_IDX_OK);
 
@@ -408,7 +410,7 @@ void mtd_exec(esp_spp_cb_param_t *param)
                     const sfud_mf mf_table[] = SFUD_MF_TABLE;
                     const char *flash_mf_name = NULL;
 
-                    flash = sfud_get_device(SFUD_TARGET_DEVICE_INDEX);
+                    flash = sfud_get_device(SFUD_FLASH_DEVICE_INDEX);
 
                     for (int i = 0; i < sizeof(mf_table) / sizeof(sfud_mf); i++) {
                         if (mf_table[i].id == flash->chip.mf_id) {
