@@ -348,8 +348,6 @@ void mtd_exec(esp_spp_cb_param_t *param)
                         data_addr = addr;
                         flash = sfud_get_device(SFUD_FLASH_DEVICE_INDEX);
 
-                        memset(&buff_struct, 0x00, sizeof(StaticRingbuffer_t));
-
                         mtd_buff = xRingbufferCreateStatic(sizeof(buff_data), RINGBUF_TYPE_BYTEBUF, buff_data, &buff_struct);
                         if (!mtd_buff) {
                             mtd_send_response(RSP_IDX_ERROR);

@@ -30,14 +30,13 @@ enum {
 static void bt_app_gap_cb(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param)
 {
     switch (event) {
-    case ESP_BT_GAP_AUTH_CMPL_EVT: {
+    case ESP_BT_GAP_AUTH_CMPL_EVT:
         if (param->auth_cmpl.stat == ESP_BT_STATUS_SUCCESS) {
             ESP_LOGI(BT_GAP_TAG, "authentication success: %s", param->auth_cmpl.device_name);
         } else {
             ESP_LOGE(BT_GAP_TAG, "authentication failed, status: %d", param->auth_cmpl.stat);
         }
         break;
-    }
     default:
         break;
     }
@@ -46,7 +45,7 @@ static void bt_app_gap_cb(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *pa
 static void bt_app_hdl_stack_evt(uint16_t event, void *p_param)
 {
     switch (event) {
-    case BT_APP_EVT_STACK_UP: {
+    case BT_APP_EVT_STACK_UP:
         /* set up device name */
         esp_bt_dev_set_device_name(CONFIG_BT_NAME);
 
@@ -60,7 +59,6 @@ static void bt_app_hdl_stack_evt(uint16_t event, void *p_param)
         esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
 
         break;
-    }
     default:
         ESP_LOGE(BT_APP_TAG, "%s unhandled evt %d", __func__, event);
         break;
