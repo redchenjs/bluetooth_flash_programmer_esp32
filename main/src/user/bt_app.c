@@ -22,7 +22,6 @@
 #define BT_APP_TAG "bt_app"
 #define BT_GAP_TAG "bt_gap"
 
-/* event for handler "bt_app_hdl_stack_up */
 enum {
     BT_APP_EVT_STACK_UP = 0
 };
@@ -34,7 +33,7 @@ static void bt_app_gap_cb(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *pa
         if (param->auth_cmpl.stat == ESP_BT_STATUS_SUCCESS) {
             ESP_LOGI(BT_GAP_TAG, "authentication success: %s", param->auth_cmpl.device_name);
         } else {
-            ESP_LOGE(BT_GAP_TAG, "authentication failed, status: %d", param->auth_cmpl.stat);
+            ESP_LOGE(BT_GAP_TAG, "authentication failed: %d", param->auth_cmpl.stat);
         }
         break;
     default:
@@ -60,7 +59,7 @@ static void bt_app_hdl_stack_evt(uint16_t event, void *p_param)
 
         break;
     default:
-        ESP_LOGE(BT_APP_TAG, "%s unhandled evt %d", __func__, event);
+        ESP_LOGW(BT_APP_TAG, "unhandled evt: %d", event);
         break;
     }
 }

@@ -110,9 +110,9 @@ static void mtd_write_task(void *pvParameter)
         uint32_t remain = length - (data_addr - addr);
 
         if (remain >= RX_BUF_SIZE) {
-            data = (uint8_t *)xRingbufferReceiveUpTo(mtd_buff, &size, 10 / portTICK_RATE_MS, RX_BUF_SIZE);
+            data = xRingbufferReceiveUpTo(mtd_buff, &size, 10 / portTICK_RATE_MS, RX_BUF_SIZE);
         } else {
-            data = (uint8_t *)xRingbufferReceiveUpTo(mtd_buff, &size, 10 / portTICK_RATE_MS, remain);
+            data = xRingbufferReceiveUpTo(mtd_buff, &size, 10 / portTICK_RATE_MS, remain);
         }
 
         if (data == NULL || size == 0) {
@@ -262,11 +262,11 @@ void mtd_exec(esp_spp_cb_param_t *param)
 
                 sfud_err err = sfud_init();
                 if (err == SFUD_ERR_NOT_FOUND) {
-                    ESP_LOGE(MTD_TAG, "target flash not found or not supported.");
+                    ESP_LOGE(MTD_TAG, "target flash not found or not supported");
 
                     mtd_send_response(RSP_IDX_FAIL);
                 } else if (err != SFUD_SUCCESS) {
-                    ESP_LOGE(MTD_TAG, "failed to init target flash.");
+                    ESP_LOGE(MTD_TAG, "failed to init target flash");
 
                     mtd_send_response(RSP_IDX_FAIL);
                 } else {
@@ -297,11 +297,11 @@ void mtd_exec(esp_spp_cb_param_t *param)
                 if (length != 0) {
                     sfud_err err = sfud_init();
                     if (err == SFUD_ERR_NOT_FOUND) {
-                        ESP_LOGE(MTD_TAG, "target flash not found or not supported.");
+                        ESP_LOGE(MTD_TAG, "target flash not found or not supported");
 
                         mtd_send_response(RSP_IDX_FAIL);
                     } else if (err != SFUD_SUCCESS) {
-                        ESP_LOGE(MTD_TAG, "failed to init target flash.");
+                        ESP_LOGE(MTD_TAG, "failed to init target flash");
 
                         mtd_send_response(RSP_IDX_FAIL);
                     } else {
@@ -337,11 +337,11 @@ void mtd_exec(esp_spp_cb_param_t *param)
 
                     sfud_err err = sfud_init();
                     if (err == SFUD_ERR_NOT_FOUND) {
-                        ESP_LOGE(MTD_TAG, "target flash not found or not supported.");
+                        ESP_LOGE(MTD_TAG, "target flash not found or not supported");
 
                         mtd_send_response(RSP_IDX_FAIL);
                     } else if (err != SFUD_SUCCESS) {
-                        ESP_LOGE(MTD_TAG, "failed to init target flash.");
+                        ESP_LOGE(MTD_TAG, "failed to init target flash");
 
                         mtd_send_response(RSP_IDX_FAIL);
                     } else {
@@ -371,11 +371,11 @@ void mtd_exec(esp_spp_cb_param_t *param)
                 if (length != 0) {
                     sfud_err err = sfud_init();
                     if (err == SFUD_ERR_NOT_FOUND) {
-                        ESP_LOGE(MTD_TAG, "target flash not found or not supported.");
+                        ESP_LOGE(MTD_TAG, "target flash not found or not supported");
 
                         mtd_send_response(RSP_IDX_FAIL);
                     } else if (err != SFUD_SUCCESS) {
-                        ESP_LOGE(MTD_TAG, "failed to init target flash.");
+                        ESP_LOGE(MTD_TAG, "failed to init target flash");
 
                         mtd_send_response(RSP_IDX_FAIL);
                     } else {
@@ -397,11 +397,11 @@ void mtd_exec(esp_spp_cb_param_t *param)
 
                 sfud_err err = sfud_init();
                 if (err == SFUD_ERR_NOT_FOUND) {
-                    ESP_LOGE(MTD_TAG, "target flash not found or not supported.");
+                    ESP_LOGE(MTD_TAG, "target flash not found or not supported");
 
                     mtd_send_response(RSP_IDX_FAIL);
                 } else if (err != SFUD_SUCCESS) {
-                    ESP_LOGE(MTD_TAG, "failed to init target flash.");
+                    ESP_LOGE(MTD_TAG, "failed to init target flash");
 
                     mtd_send_response(RSP_IDX_FAIL);
                 } else {
@@ -435,7 +435,7 @@ void mtd_exec(esp_spp_cb_param_t *param)
                 break;
             }
             default:
-                ESP_LOGW(MTD_TAG, "unknown command.");
+                ESP_LOGW(MTD_TAG, "unknown command");
 
                 mtd_send_response(RSP_IDX_ERROR);
 
@@ -443,7 +443,7 @@ void mtd_exec(esp_spp_cb_param_t *param)
         }
     } else {
         if (mtd_buff) {
-            xRingbufferSend(mtd_buff, (void *)param->data_ind.data, param->data_ind.len, portMAX_DELAY);
+            xRingbufferSend(mtd_buff, param->data_ind.data, param->data_ind.len, portMAX_DELAY);
         }
     }
 }
