@@ -133,7 +133,7 @@ static void mtd_write_task(void *pvParameter)
             goto write_fail;
         }
 
-        vRingbufferReturnItem(mtd_buff, (void *)data);
+        vRingbufferReturnItem(mtd_buff, data);
     }
 
     ESP_LOGI(MTD_TAG, "write done.");
