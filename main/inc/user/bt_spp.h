@@ -10,6 +10,6 @@
 
 #include "esp_spp_api.h"
 
-extern void bt_app_spp_cb(esp_spp_cb_event_t event, esp_spp_cb_param_t *param);
+extern void bt_spp_event_handler(esp_spp_cb_event_t event, esp_spp_cb_param_t *param);
 
 #endif /* INC_USER_BT_SPP_H_ */
