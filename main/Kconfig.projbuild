@@ -3,14 +3,10 @@ menu "Bluetooth Flash Programmer"
 config BT_NAME
     string "Bluetooth Name"
     default "Bluetooth Flash Programmer"
-    help
-        Bluetooth name exposed by the device.
 
 config BT_SPP_SERVER_NAME
     string "SPP Server Name"
     default "MTD"
-    help
-        Bluetooth SPP server name.
 
 config SPI_CS_PIN
     int "SPI CS Pin"
