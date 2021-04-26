@@ -26,7 +26,7 @@ static void chip_init(void)
 
     bt_init();
 
-    hspi_init();
+    spi_host_init();
 }
 
 static void board_init(void)
